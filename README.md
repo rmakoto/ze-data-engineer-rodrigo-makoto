@@ -116,7 +116,7 @@ To make the data available for quering, we just have to consume each event topic
 
 ## Solution Demo
 
-For this challenge propose, I am choosing to implement the open-source solution, because anyone can run it locally in Docker, without the need of external components in AWS. In production, I'd probably would go with AWS or hybrid solution.
+For this challenge propose, I am choosing to implement the open-source solution, because anyone can run it locally in Docker, without the need of external components in AWS. In production, I'd probably go with AWS or hybrid solution.
 
 Unfortunatelly, I couln't automate each componenet configuration due to delivery deadline :sad-parrot:, but follow the step by step to make each component ready to run.
 
@@ -137,7 +137,7 @@ Go grab a coffee, it will take a while.
 
 ### Tracking-api (Nginx + fluentd)
 
-Tracking-api is composed of [NGINX](https://www.nginx.com/), which expose an endpoint which accepts a POST request and logs it to a file, and + [FluentD](https://www.fluentd.org/) which translate that log file into a JSON a sends it to `Kafka`.
+Tracking-api is composed of [NGINX](https://www.nginx.com/), which expose an endpoint that accepts a POST request and logs it to a file, and + [FluentD](https://www.fluentd.org/) which translate that log file into a JSON a sends it to `Kafka`.
 
 Tracking-api is composed of [NGINX](https://www.nginx.com/), which expose an endpoint which accepts a POST request and logs it to a file. Fluentd is usually used for logging, so it can handle a huge volume of data. It translates that log file into a JSON and then produce to a Kafka topic `courier_events` using [fluent-plugin-kafka](https://docs.fluentd.org/v/0.12/output/kafka).
 
