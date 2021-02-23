@@ -1,0 +1,15 @@
+---
+startDelaySeconds: 0
+rules:
+- pattern: "java.lang<type=Memory><HeapMemoryUsage>used"
+  name: "hive_java_lang_Memory_HeapMemoryUsage_used"
+  help: "Hive: java_lang_Memory_HeapMemoryUsage_used"
+  type: GAUGE
+- pattern: "java.lang<type=Memory><HeapMemoryUsage>max"
+  name: "hive_java_lang_Memory_HeapMemoryUsage_max"
+  help: "Hive: java_lang_Memory_HeapMemoryUsage_max"
+  type: GAUGE
+- pattern: "java.lang<type=OperatingSystem><>ProcessCpuLoad"
+  name: "hive_java_lang_OperatingSystem_ProcessCpuLoad"
+  help: "Hive: java_lang_OperatingSystem_ProcessCpuLoad"
+  type: GAUGE
