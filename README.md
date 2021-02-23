@@ -76,7 +76,7 @@ In this architecture, we don't need to create a new API to receive the location 
 {
 "event_name": "get_courier_location",
 "type": "GEO_LOCATION",
-"event_sent_timestamp": 213412213,
+"device_sent_timestamp": 213412213,
 "attributes": {
     "courier_id": "1",
     "order_id": 10,
@@ -92,7 +92,7 @@ In this architecture, we don't need to create a new API to receive the location 
 {
 "event_name": "order_status",
 "type": "ORDER",
-"event_sent_timestamp": 12412323213,
+"device_sent_timestamp": 12412323213,
 "attributes": {
     "courier_id": "1",
     "order_id": 10,
@@ -148,7 +148,7 @@ Fluentd will create `courier_events` topic when the first event arrive.
 
     ```bash
     curl -X POST -H "Content-Type: application/json" \
-    --data '{"event_name": "get_courier_location", "type": "GEO_LOCATION", "event_sent_timestamp": 213412213, "attributes": {"courier_id": "1", "order_id": 10,  "client_id": "123", "lat": 0.123123,  "long": 0.123123, "accuracy": "high", "speed": 50}}' \
+    --data '{"event_name": "get_courier_location", "type": "GEO_LOCATION", "device_sent_timestamp": 213412213, "attributes": {"courier_id": "1", "order_id": 10,  "client_id": "123", "lat": 0.123123,  "long": 0.123123, "accuracy": "high", "speed": 50}}' \
     http://localhost:8000/events
     ```
 
@@ -156,7 +156,7 @@ Fluentd will create `courier_events` topic when the first event arrive.
 
     ```bash
     curl -X POST -H "Content-Type: application/json" \
-    --data '{"event_name": "order_status", "type": "ORDER", "event_sent_timestamp": 213412213, "attributes": {"courier_id": "1", "order_id": 10, "client_id": "123","status": "finished","lat": 0.123123, "long": 0.123123,"accuracy": "high"}}' \
+    --data '{"event_name": "order_status", "type": "ORDER", "device_sent_timestamp": 213412213, "attributes": {"courier_id": "1", "order_id": 10, "client_id": "123","status": "finished","lat": 0.123123, "long": 0.123123,"accuracy": "high"}}' \
     http://localhost:8000/events
     ```
 
@@ -170,6 +170,14 @@ docker run \
    kafka-topics --list --zookeeper localhost:2181
 ```
 
+Check msgs in `courier_events` topic using kafka container
+
+```bash
+docker exec -it kafka bash
+
+kafka-console-consumer --bootstrap-server kafka:9092 --topic courier_events --from-beginning --max-messages 100
+```
+
 ### Schema Validation
 
 JSON is a fragile data format to work with, mainly because it is schemaless, in other words, its schema can change any time and can potentially break the rest of the pipeline. Serialized data formats like Avro and Protobuf ensure a schema for the data, avoiding several problems. In this challenge, we are going to use Avro.
@@ -179,7 +187,7 @@ Once we have events in `courier_events` topic in JSON format, we have to validat
 Go inside KSQL container:
 
 ```bash
-docker exec -it ze-data-engineer_ksql_1 bash
+docker exec -it ksql-server bash
 ```
 
 Type `ksql` to start a KSQL Client:
@@ -194,12 +202,12 @@ CREATE STREAM courier_events
 WITH (KAFKA_TOPIC='courier_events', 
       VALUE_FORMAT='JSON');
 
-CREATE STREAM get_courier_location_json
+CREATE STREAM get_courier_location
     WITH (VALUE_FORMAT='JSON', KAFKA_TOPIC='get_courier_location_json') 
     AS SELECT * FROM courier_events
     WHERE event_name = 'get_courier_location';
 
-CREATE STREAM order_status_json
+CREATE STREAM order_status
     WITH (VALUE_FORMAT='JSON', KAFKA_TOPIC='order_status_json') 
     AS SELECT * FROM courier_events
     WHERE event_name = 'order_status';
@@ -209,18 +217,18 @@ Defining `get_courier_location` event schema and creating a Stream to convert to
 
 ```sql
 CREATE STREAM get_courier_location_json
-    (event_name VARCHAR
-    type VARCHAR
-    collector_timestamp DOUBLE
-    event_sent_timestamp DOUBLE
+    (event_name VARCHAR,
+    type VARCHAR,
+    collector_timestamp DOUBLE,
+    device_sent_timestamp DOUBLE,
     attributes STRUCT< 
-        courier_id VARCHAR
-        order_id INT
-        client_id VARCHAR
-        status VARCHAR
-        lat DOUBLE
-        long DOUBLE
-        accuracy VARCHAR
+        courier_id VARCHAR,
+        order_id INT,
+        client_id VARCHAR,
+        status VARCHAR,
+        lat DOUBLE,
+        long DOUBLE,
+        accuracy VARCHAR,
         speed INT>)
 WITH (KAFKA_TOPIC='get_courier_location_json', 
       VALUE_FORMAT='JSON');
@@ -237,7 +245,7 @@ CREATE STREAM order_status_json
     (event_name VARCHAR
     type VARCHAR
     collector_timestamp DOUBLE
-    event_sent_timestamp DOUBLE
+    device_sent_timestamp DOUBLE
     attributes STRUCT<
         courier_id VARCHAR
         order_id INT
@@ -259,8 +267,20 @@ Check created Streams
 # show existing streams
 SHOW STREAMS
 
-# drop a stream
-DROP STREAM [IF EXISTS] stream_name [DELETE TOPIC];
+# show queries
+SHOW QUERIES
+
+# drop a stream if necessary
+TERMINATE <query name>;
+DROP STREAM IF EXISTS <stream name> DELETE TOPIC;
+```
+
+Check Avro msgs in `order_status_avro` or `get_courier_location_avro` topic using Schema Registry container
+
+```bash
+docker exec -it schema-registry bash
+
+kafka-avro-console-consumer --bootstrap-server kafka:9092 --property schema.registry.url=http://localhost:8081 --topic get_courier_location_avro --from-beginning
 ```
 
 Check if Avro schemas were created in Schema Registry
@@ -274,12 +294,12 @@ http://localhost:8001/#/
 
 ### Configuring Hive Metastore
 
-Before create Kafka Connect connectors start data ingestion to Datalake, let's configure Hive Metastore. We need to create a database `events` and each event table.
+Before create Kafka Connect connectors start data ingestion to Datalake, let's configure Hive Metastore. We need to create a database `events`.
 
 Go inside Hive container:
 
 ```bash
-docker exec -it ze-data-engineer_hive_1 bash
+docker exec -it hive bash
 ```
 
 Type `hive` to start a Hive Client:
@@ -287,37 +307,11 @@ Type `hive` to start a Hive Client:
 ```sql
 CREATE DATABASE events;
 USE events;
-
-CREATE EXTERNAL TABLE get_courier_location
-ROW FORMAT SERDE
-'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
-STORED AS INPUTFORMAT
-'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
-OUTPUTFORMAT
-'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
-TBLPROPERTIES (
-'avro.schema.url'='http://schema-registry:8081/subjects/get_courier_location_avro.avsc'
-LOCATION '/topics/get_courier_location_avro');
-
-CREATE EXTERNAL TABLE order_status
-ROW FORMAT SERDE
-'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
-STORED AS INPUTFORMAT
-'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
-OUTPUTFORMAT
-'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
-TBLPROPERTIES (
-'avro.schema.url'='http://schema-registry:8081/subjects/order_status.avsc'
-LOCATION '/topics/order_status_avro');
 ```
-
-VERIFY SCHEMA URL
-
-
 
 ### Storing in Datalake
 
-Now that we have validated events in `get_courier_location_avro` and `order_status_avro` topics, we are going to use Kafka Connect with [HDFS-Sink plugin](https://docs.confluent.io/kafka-connect-hdfs/current/index.html) to store all these events into HDFS (Datalake).
+Now that we have validated events in `get_courier_location_avro` and `order_status_avro` topics, we are going to use Kafka Connect with [HDFS-Sink plugin](https://docs.confluent.io/kafka-connect-hdfs/current/index.html) to store all these events into HDFS (Datalake) and create their respective Hive tables.
 
 Creating Kafka Connect Connector for `get_courier_location_avro`
 
@@ -325,7 +319,7 @@ Creating Kafka Connect Connector for `get_courier_location_avro`
 curl http://localhost:8083/connectors -X POST -H "Content-Type: application/json" \
 --data '{"name": "get_courier_location_avro-sink",
 "config": {
-    "connector.class": "io.confluent.connect.hdfs2.Hdfs2SinkConnector",
+    "connector.class": "io.confluent.connect.hdfs.HdfsSinkConnector",
     "tasks.max": "1",
     "topics": "get_courier_location_avro",
     "hdfs.url": "hdfs://namenode:9000",
@@ -348,7 +342,7 @@ Creating Kafka Connect Connector for `order_status_avro`
 curl http://localhost:8083/connectors -X POST -H "Content-Type: application/json" \
 --data '{"name": "order_status_avro-sink",
 "config": {
-    "connector.class": "io.confluent.connect.hdfs2.Hdfs2SinkConnector",
+    "connector.class": "io.confluent.connect.hdfs.HdfsSinkConnector",
     "tasks.max": "1",
     "topics": "order_status_avro",
     "hdfs.url": "hdfs://namenode:9000",
@@ -381,7 +375,7 @@ curl -X DELETE http://localhost:8083/connectors/order_status_avro-sink
 Check `HDFS UI` to check if files arrived in Datalake
 
 ```url
-http://localhost:9870/explorer.html
+http://localhost:50070/explorer.html
 ```
 
 ### **Data Consumption**
