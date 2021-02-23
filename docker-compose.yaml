@@ -15,7 +15,6 @@ services:
     volumes:
       - ./tracking-api/nginx/nginx.conf:/opt/nginx/conf/nginx.conf
       - ./tracking-api/fluentd/config/fluentd.conf:/etc/fluent/fluentd.conf
-      - ./tracking-api/fluentd/schemas/:/etc/fluent/schemas
     environment:
       KAFKA_BROKERS: kafka:9092
       SCHEMA_REGISTRY: schema-registry:8081
@@ -141,7 +140,7 @@ services:
     image: bde2020/hadoop-namenode:1.1.0-hadoop2.8-java8
     restart: unless-stopped
     ports:
-      - 9870:9870
+      - 50070:50070
       - 9000:9000
     volumes:
       - ./tmp/hadoop_namenode:/hadoop/dfs/name
@@ -155,6 +154,8 @@ services:
     container_name: datanode
     image: bde2020/hadoop-datanode:1.1.0-hadoop2.8-java8
     restart: unless-stopped
+    ports:
+      - 50075:50075
     volumes:
       - ./tmp/hadoop_datanode:/hadoop/dfs/data
     environment:
@@ -167,6 +168,8 @@ services:
     container_name: resourcemanager
     image: bde2020/hadoop-resourcemanager:1.1.0-hadoop2.8-java8
     restart: unless-stopped
+    ports:
+      - 8087:8088
     environment:
       SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864"
       HADOOP_VERSION: "2.8.0"
@@ -177,6 +180,8 @@ services:
     container_name: nodemanager1
     image: bde2020/hadoop-nodemanager:1.1.0-hadoop2.8-java8
     restart: unless-stopped
+    ports:
+      - 8042:8042
     environment:
       SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
       HADOOP_VERSION: "2.8.0"
@@ -187,6 +192,8 @@ services:
     container_name: historyserver
     image: bde2020/hadoop-historyserver:1.1.0-hadoop2.8-java8
     restart: unless-stopped
+    ports:
+      - 8188:8188
     environment:
       SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
       HADOOP_VERSION: "2.8.0"
@@ -215,9 +222,24 @@ services:
       - ./sql-engine/trino/config/jvm.config:/etc/trino/jvm.config
       - ./sql-engine/trino/config/log.properties:/etc/trino/log.properties
       - ./sql-engine/trino/config/authorization-rules.json:/etc/trino/authorization-rules.json
-      - ./sql-engine/trino/config/catalog/hive.properties:/etc/trino/catalog/hive.properties
+      - ./sql-engine/trino/config/catalog/hive.properties:/usr/lib/trino/etc/trino/catalog/hive.properties
       - ./tmp/coordinator/data:/data
       - ./tmp/coordinator/worker:/trino
+
+  trino-worker_1:
+    container_name: trino-worker_1
+    image: trinodb/trino
+    restart: unless-stopped
+    volumes:
+      - ./sql-engine/trino/config/worker.properties:/etc/trino/config.properties
+      - ./sql-engine/trino/config/node.properties:/etc/trino/node.properties
+      - ./sql-engine/trino/config/jvm.config:/etc/trino/jvm.config
+      - ./sql-engine/trino/config/log.properties:/etc/trino/log.properties
+      - ./sql-engine/trino/config/catalog/hive.properties:/usr/lib/trino/etc/trino/catalog/hive.properties
+      - ./tmp/worker_1/data:/data
+      - ./tmp/worker_1/worker:/trino
+    depends_on:
+      - trino-coordinator
 
   hive-metastore:
     container_name: hive-metastore
