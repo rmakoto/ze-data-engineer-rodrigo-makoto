@@ -47,7 +47,7 @@ Since my background is mainly working with open-source technologies along with s
 
 ![Hybrid Architecture](/images/hybrid.jpg)
 
-### Challenges Questions
+### Challenge Questions
 
 #### **How are we going to receive all the location data from the couriers' app? What protocols, services, components we are going to use to proper receive the data, store it and be available to be used in other products**
 
