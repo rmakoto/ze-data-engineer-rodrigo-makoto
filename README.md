@@ -47,21 +47,28 @@ Since my background is mainly working with open-source technologies along with s
 
 ![Hybrid Architecture](/images/hybrid.jpg)
 
-### **Advantages and disvantages**
+### Challenges Questions
 
 #### **How are we going to receive all the location data from the couriers' app? What protocols, services, components we are going to use to proper receive the data, store it and be available to be used in other products**
+
+- Should we create an API for it? 
+- Should we use some specific managed component to receive this information? 
+- Should we use queues, pub-sub mechanisms, serverless components? 
 
 To capture couriers position events, I would suggest to create a API. AWS API Gateway, AWS Lambda and AWS MSK (Managed Kafka) are good options for this case. API Gateway would receive the events and Lambda would produce each event in JSON format to a MSK topic.
 A important issue we have to consider, this API can be used to track not only courier GPS information, but to capture a range of different kind of events. Because of that, the events volume can increase super rapidly. Although API Gateway and Lambda are cheap, when we are dealing with huge volume of events, the costs can increase rapdily. A good alternative would be create a API using open-source solutions, like Nginx and fluentd.
 
 #### **While receiving this location data associed with order's information, imagine we need to ingest more information to it**
 
+- How would we do this? 
+- In which layer that you have proposed in the previous answer?
+
 To ingest more information to an existing event, we have to think how to deal with this new information to not break the entire pipeline that will come after it arrives. Firstly, each event MUST have a defined schema. To make this we can use KSQL to consume JSON topic, serializing each event to Avro format into a new topic, using Schema Registry to make control of event's schema. Avro and Schema Registry garantee that if a event comes with some new information or even a wrong existing attribute, it will not break the rest of the pipeline. To add this new information, we just have to deal with schema evolutions.
 
 #### **We need to create an API to retrieve the last retrieved location from an order**
 
-* How do you propose us to do this? 
-* While receiving location data, can you elaborate a solution to store the order's last location information?
+- How do you propose us to do this?
+- While receiving location data, can you elaborate a solution to store the order's last location information?
 
 In this architecture, we don't need to create a new API to receive the location when the order finishes, we can use the same API to receive all the events, making sure that each event has its own schema defined in Schema Registry. For example, let's consider the events `get_courier_location` and `order_status`.
 
@@ -248,8 +255,12 @@ CREATE STREAM order_status_avro
 ```
 
 Check created Streams
-```
+```bash
+# show existing streams
+SHOW STREAMS
 
+# drop a stream
+DROP STREAM [IF EXISTS] stream_name [DELETE TOPIC];
 ```
 
 Check if Avro schemas were created in Schema Registry
@@ -257,9 +268,8 @@ Check if Avro schemas were created in Schema Registry
 ```bash
 curl -X GET http://schema-registry:8081/subjects
 
-Or Schema Registry UI
-
-http://localhost:8081
+# Schema Registry UI URL
+http://localhost:8001/#/
 ```
 
 ### Configuring Hive Metastore
@@ -286,7 +296,8 @@ STORED AS INPUTFORMAT
 OUTPUTFORMAT
 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
 TBLPROPERTIES (
-'avro.schema.url'='http://schema-registry:8081/subjects/get_courier_location_avro.avsc');
+'avro.schema.url'='http://schema-registry:8081/subjects/get_courier_location_avro.avsc'
+LOCATION '/topics/get_courier_location_avro');
 
 CREATE EXTERNAL TABLE order_status
 ROW FORMAT SERDE
@@ -296,7 +307,8 @@ STORED AS INPUTFORMAT
 OUTPUTFORMAT
 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
 TBLPROPERTIES (
-'avro.schema.url'='http://schema-registry:8081/subjects/order_status.avsc');
+'avro.schema.url'='http://schema-registry:8081/subjects/order_status.avsc'
+LOCATION '/topics/order_status_avro');
 ```
 
 VERIFY SCHEMA URL
@@ -410,6 +422,7 @@ http://localhost:8080/ui/login.html
 ## Next Steps
 
 - Automate each component configuration
-- Unit tests
+- Monitoring with Prometheus + Grafana
+- Tests
 - Run on K8S
 - Create K8s yaml files / Helm templates or use 3rd party Helm charts
