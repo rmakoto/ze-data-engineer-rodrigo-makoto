@@ -1,0 +1,256 @@
+version: '2'
+services:
+
+  ## Ingestion Layer
+
+  tracking-api:
+    build:
+      context: ./tracking-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports: 
+      - 8000:80
+      - 24231:24231
+    volumes:
+      - ./tracking-api/nginx/nginx.conf:/opt/nginx/conf/nginx.conf
+      - ./tracking-api/fluentd/config/fluentd.conf:/etc/fluent/fluentd.conf
+      - ./tracking-api/fluentd/schemas/:/etc/fluent/schemas
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      SCHEMA_REGISTRY: schema-registry:8081
+    depends_on:
+      - kafka
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.1.0
+    restart: unless-stopped
+    ports:
+      - 2181:2181
+    environment: 
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+    - ./tmp/zk-data:/var/lib/zookeeper/data
+    - ./tmp/zk-logs:/var/lib/zookeeper/log
+
+  kafka:
+    image: confluentinc/cp-kafka:6.1.0
+    restart: unless-stopped
+    ports:
+      - 9092:9092
+      - 29092:29092
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./tmp/kafka-data:/var/lib/kafka/data
+      - ./tmp/kafka-node-1-secrets:/etc/kafka/secrets
+    depends_on: 
+      - zookeeper
+  
+  ## Processing Layer
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:6.1.0
+    restart: unless-stopped
+    ports:
+      - 8081:8081
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_BOOTSTRAP_SERVERS: INTERNAL://kafka:9092
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:9092"
+      SCHEMA_REGISTRY_DEBUG: "true"
+    depends_on: 
+      - zookeeper
+      - kafka
+
+  schema-registry-ui:
+    image: landoop/schema-registry-ui
+    restart: unless-stopped
+    ports:
+      - 8001:8000
+    environment:
+      SCHEMAREGISTRY_URL: schema-registry:8081
+      PROXY: "true"
+    depends_on: 
+      - schema-registry
+
+  kafka-connect-avro:
+    image: confluentinc/cp-kafka-connect:latest
+    restart: unless-stopped
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "courier-avro"
+      CONNECT_CONFIG_STORAGE_TOPIC: "courier-avro-config"
+      CONNECT_OFFSET_STORAGE_TOPIC: "courier-avro-offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "courier-avro-status"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect-avro"
+      CONNECT_LOG4J_ROOT_LOGLEVEL: INFO
+      CONNECT_PLUGIN_PATH: "/usr/local/share/kafka/plugins"
+      CLASSPATH: "/etc/kafka-connect/jars/"
+    ports:
+      - 8083:8083
+    volumes: 
+      - ./tmp/file:/tmp/courier
+      - ./kafka-connect/plugins:/usr/local/share/kafka/plugins
+    depends_on: 
+      - zookeeper
+      - kafka
+      - schema-registry
+  
+  ksql-server:
+    image: confluentinc/cp-ksql-server:5.4.3
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      KSQL_BOOTSTRAP_SERVERS: kafka:9092
+      KSQL_LISTENERS: http://0.0.0.0:8088
+      KSQL_KSQL_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    depends_on:
+      - kafka
+      - schema-registry
+
+  ## Storage Layer
+
+  namenode:
+    image: bde2020/hadoop-namenode:1.1.0-hadoop2.8-java8
+    restart: unless-stopped
+    ports:
+      - 9870:9870
+      - 9000:9000
+    volumes:
+      - ./tmp/hadoop_namenode:/hadoop/dfs/name
+    environment:
+      CLUSTER_NAME: "test"
+      HADOOP_VERSION: "2.8.0"
+    env_file:
+      - ./hdfs/config/hadoop.env
+
+  datanode:
+    image: bde2020/hadoop-datanode:1.1.0-hadoop2.8-java8
+    restart: unless-stopped
+    volumes:
+      - ./tmp/hadoop_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+      HADOOP_VERSION: "2.8.0"
+    env_file:
+      - ./hdfs/config/hadoop.env
+  
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:1.1.0-hadoop2.8-java8
+    restart: unless-stopped
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864"
+      HADOOP_VERSION: "2.8.0"
+    env_file:
+      - ./hdfs/config/hadoop.env
+
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:1.1.0-hadoop2.8-java8
+    restart: unless-stopped
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
+      HADOOP_VERSION: "2.8.0"
+    env_file:
+      - ./hdfs/config/hadoop.env
+  
+  historyserver:
+    image: bde2020/hadoop-historyserver:1.1.0-hadoop2.8-java8
+    restart: unless-stopped
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
+      HADOOP_VERSION: "2.8.0"
+    volumes:
+      - ./tmp/hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hdfs/config/hadoop.env
+
+  ## Consumption Layer
+  
+  trino-coordinator:
+    image: trinodb/trino
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+      - "5557:5557"
+    environment: 
+      TRINO_HOME: "/usr/lib/trino"
+      TRINO_ETC_DIR: "/usr/lib/trino/etc"
+      TRINO_DATA_DIR: "/data/trino"
+    volumes:
+      - ./sql-engine/trino/config/coordinator.properties:/etc/trino/config.properties
+      - ./sql-engine/trino/config/node.properties:/etc/trino/node.properties
+      - ./sql-engine/trino/config/jvm.config:/etc/trino/jvm.config
+      - ./sql-engine/trino/config/log.properties:/etc/trino/log.properties
+      - ./sql-engine/trino/config/authorization-rules.json:/etc/trino/authorization-rules.json
+      - ./sql-engine/trino/config/catalog/hive.properties:/etc/trino/catalog/hive.properties
+      - ./tmp/coordinator/data:/data
+      - ./tmp/coordinator/worker:/trino
+
+  hive-metastore:
+    image: hive
+    build:
+      context: .
+      dockerfile: ./sql-engine/hive/Dockerfile
+    restart: unless-stopped
+    command: /opt/hive/bin/hive --service metastore
+    volumes:
+    - ./sql-engine/hive/config/core-site.xml:/opt/hive/conf/core-site.xml
+    - ./sql-engine/hive/config/hive-site.xml:/opt/hive/conf/hive-site.xml
+    - ./sql-engine/hive/config/ivysettings.xml:/opt/hive/conf/ivysettings.xml
+    - ./sql-engine/hive/config/hive-log4j2.properties:/opt/hive/conf/log4j2.properties
+    ports:
+    - 9083:9083
+    - 5556:5556
+    depends_on:
+      - namenode
+      - postgresql
+
+  hive:
+    image: hive
+    restart: unless-stopped
+    depends_on:
+      - hive-metastore
+    command: /opt/hive/bin/hive --service hiveserver2
+    volumes:
+    - ./sql-engine/hive/config/core-site.xml:/opt/hive/conf/core-site.xml
+    - ./sql-engine/hive/config/hive-site.xml:/opt/hive/conf/hive-site.xml
+    - ./sql-engine/hive/config/hive-log4j2.properties:/opt/hive/conf/log4j2.properties
+    - ./sql-engine/hive/config/ivysettings.xml:/opt/hive/conf/ivysettings.xml
+    ports:
+    - 10002:10002
+    - 10000:10000
+
+  postgresql:
+    image: postgres:9.5
+    restart: unless-stopped
+    ports:
+    - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: "hive"
+      POSTGRES_USER: "hive"
+      POSTGRES_DB: "hive"
+    volumes:
+    - ./tmp/postgres:/var/lib/postgresql/data
+    - ./sql-engine/scripts/postgres_init.sql:/docker-entrypoint-initdb.d/1.sql
+      
+
