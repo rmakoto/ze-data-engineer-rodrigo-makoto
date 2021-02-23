@@ -4,6 +4,7 @@ services:
   ## Ingestion Layer
 
   tracking-api:
+    container_name: tracking-api
     build:
       context: ./tracking-api
       dockerfile: Dockerfile
@@ -22,6 +23,7 @@ services:
       - kafka
 
   zookeeper:
+    container_name: zookeeper
     image: confluentinc/cp-zookeeper:6.1.0
     restart: unless-stopped
     ports:
@@ -34,6 +36,7 @@ services:
     - ./tmp/zk-logs:/var/lib/zookeeper/log
 
   kafka:
+    container_name: kafka
     image: confluentinc/cp-kafka:6.1.0
     restart: unless-stopped
     ports:
@@ -57,6 +60,7 @@ services:
   ## Processing Layer
 
   schema-registry:
+    container_name: schema-registry
     image: confluentinc/cp-schema-registry:6.1.0
     restart: unless-stopped
     ports:
@@ -71,6 +75,7 @@ services:
       - kafka
 
   schema-registry-ui:
+    container_name: schema-registry-ui
     image: landoop/schema-registry-ui
     restart: unless-stopped
     ports:
@@ -82,6 +87,7 @@ services:
       - schema-registry
 
   kafka-connect-avro:
+    container_name: kafka-connect-avro
     image: confluentinc/cp-kafka-connect:latest
     restart: unless-stopped
     environment:
@@ -115,6 +121,7 @@ services:
       - schema-registry
   
   ksql-server:
+    container_name: ksql-server
     image: confluentinc/cp-ksql-server:5.4.3
     restart: unless-stopped
     ports:
@@ -130,6 +137,7 @@ services:
   ## Storage Layer
 
   namenode:
+    container_name: namenode
     image: bde2020/hadoop-namenode:1.1.0-hadoop2.8-java8
     restart: unless-stopped
     ports:
@@ -144,6 +152,7 @@ services:
       - ./hdfs/config/hadoop.env
 
   datanode:
+    container_name: datanode
     image: bde2020/hadoop-datanode:1.1.0-hadoop2.8-java8
     restart: unless-stopped
     volumes:
@@ -155,6 +164,7 @@ services:
       - ./hdfs/config/hadoop.env
   
   resourcemanager:
+    container_name: resourcemanager
     image: bde2020/hadoop-resourcemanager:1.1.0-hadoop2.8-java8
     restart: unless-stopped
     environment:
@@ -164,6 +174,7 @@ services:
       - ./hdfs/config/hadoop.env
 
   nodemanager1:
+    container_name: nodemanager1
     image: bde2020/hadoop-nodemanager:1.1.0-hadoop2.8-java8
     restart: unless-stopped
     environment:
@@ -173,6 +184,7 @@ services:
       - ./hdfs/config/hadoop.env
   
   historyserver:
+    container_name: historyserver
     image: bde2020/hadoop-historyserver:1.1.0-hadoop2.8-java8
     restart: unless-stopped
     environment:
@@ -186,6 +198,7 @@ services:
   ## Consumption Layer
   
   trino-coordinator:
+    container_name: trino-coordinator
     image: trinodb/trino
     restart: unless-stopped
     ports:
@@ -207,6 +220,7 @@ services:
       - ./tmp/coordinator/worker:/trino
 
   hive-metastore:
+    container_name: hive-metastore
     image: hive
     build:
       context: .
@@ -226,6 +240,7 @@ services:
       - postgresql
 
   hive:
+    container_name: hive
     image: hive
     restart: unless-stopped
     depends_on:
@@ -241,6 +256,7 @@ services:
     - 10000:10000
 
   postgresql:
+    container_name: postgresql
     image: postgres:9.5
     restart: unless-stopped
     ports:
@@ -252,5 +268,3 @@ services:
     volumes:
     - ./tmp/postgres:/var/lib/postgresql/data
     - ./sql-engine/scripts/postgres_init.sql:/docker-entrypoint-initdb.d/1.sql
-      
-
