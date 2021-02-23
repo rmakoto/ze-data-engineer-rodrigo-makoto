@@ -1,0 +1,12 @@
+{
+    "catalogs": [
+        {
+            "catalog": "hive",
+            "allow": "all"
+        },
+        {
+            "catalog": "system",
+            "allow": "read-only"
+        }
+    ]
+}
