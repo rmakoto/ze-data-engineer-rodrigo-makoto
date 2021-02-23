@@ -74,33 +74,33 @@ In this architecture, we don't need to create a new API to receive the location 
 
 ```json
 {
-"event_name": "get_courier_location", 
-"type": "GEO_LOCATION", 
+"event_name": "get_courier_location",
+"type": "GEO_LOCATION",
+"event_sent_timestamp": 213412213,
 "attributes": {
     "courier_id": "1",
-    "order_id": 10, 
+    "order_id": 10,
     "client_id": "123",
-    "lat": 0.123123, 
+    "lat": 0.123123,
     "long": 0.123123,
     "accuracy": "high",
-    "speed": 50,
-    "event_sent_timestamp": 213412213}
+    "speed": 50}
 }
 ```
 
 ```json
 {
-"event_name": "order_status", 
-"type": "ORDER", 
+"event_name": "order_status",
+"type": "ORDER",
+"event_sent_timestamp": 12412323213,
 "attributes": {
-    "courier_id": "1", 
-    "order_id": 10, 
+    "courier_id": "1",
+    "order_id": 10,
     "client_id": "123",
     "status": "finished",
-    "lat": 0.123123, 
+    "lat": 0.123123,
     "long": 0.123123,
-    "accuracy": "high",
-    "event_sent_timestamp": 12412323213}
+    "accuracy": "high"}
 }
 ```
 
