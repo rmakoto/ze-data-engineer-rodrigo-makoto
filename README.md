@@ -56,7 +56,7 @@ Since my background is mainly working with open-source technologies along with s
 - Should we use queues, pub-sub mechanisms, serverless components? 
 
 To capture couriers position events, I would suggest to create a API. AWS API Gateway, AWS Lambda and AWS MSK (Managed Kafka) are good options for this case. API Gateway would receive the events and Lambda would produce each event in JSON format to a MSK topic.
-A important issue we have to consider, this API can be used to track not only courier GPS information, but to capture a range of different kind of events. Because of that, the events volume can increase super rapidly. Although API Gateway and Lambda are cheap, when we are dealing with huge volume of events, the costs can increase rapdily. A good alternative would be create a API using open-source solutions, like Nginx and fluentd.
+A important issue we have to consider, this API can be used to track not only courier GPS information, but to capture a range of different kind of events. Because of that, the events volume can increase super rapidly. Although API Gateway and Lambda are cheap, when we are dealing with huge volume of events, the costs can increase rapidly. A good alternative would be create a API using open-source solutions, like Nginx and fluentd.
 
 #### **While receiving this location data associed with order's information, imagine we need to ingest more information to it**
 
@@ -70,7 +70,7 @@ To ingest more information to an existing event, we have to think how to deal wi
 - How do you propose us to do this?
 - While receiving location data, can you elaborate a solution to store the order's last location information?
 
-In this architecture, we don't need to create a new API to receive the location when the order finishes, we can use the same API to receive all the events, making sure that each event has its own schema defined in Schema Registry. For example, let's consider the events `get_courier_location` and `order_status`.
+In this architecture, we don't need to create a new API to receive the location when the order finishes. We can use the same API to receive all the events, making sure that each event has its own schema defined in Schema Registry. For example, let's consider the events `get_courier_location` and `order_status`.
 
 ```json
 {
@@ -104,7 +104,7 @@ In this architecture, we don't need to create a new API to receive the location 
 }
 ```
 
-With KSQL, we can create two different Streams to consume both events, each one being produced and stored in its own topic in Avro format. So if an application have to consume just `status: finished` events, it can consume the topic `order_status` and filter the ones with `status: finished`, or we can create another Stream to filter these specific events to another topic and make the application consume from there.
+With KSQL, we can create multiples Streams to consume both events, each one being produced and stored in its own topic in Avro format. So if an application have to consume just `order_status` event with `status: finished` attribute, it can consume the topic `order_status` and filter the ones with `status: finished`, or we can create another Stream to filter this specific event to another topic and make the application consume from there.
 
 #### **If we need to notify the users about each order's status, how would you implement this while collecting the data?**
 
@@ -112,7 +112,7 @@ As stated in previous question, we can create Streams for `order_status` event a
 
 #### **How to store the data and how to make it available to be queried by our Data Analytics team?**
 
-To make the data available for quering, we just have to consume each event topic, store them in Datalake (S3) and plug a SQL engine to make the data queriable. To accomplish this, we can use Kafka Connect with s3-sink plugin to land the data into Datalake and Hive Metastore + Trino (former PrestoSQL) or AWS Glue + Athena as SQL Engine. Since s3-sink plugin does not have support to repair Hive partitions, we can create a workaround using S3 Notifications + Lambda + DynamoDB, as proposed in this [article](https://aws.amazon.com/blogs/big-data/data-lake-ingestion-automatically-partition-hive-external-tables-with-aws/), or even use a open-source solution like [Secor](https://github.com/pinterest/secor), which has this support. In Glue + Athena case, we can use Glue crawlers to make datasets available for quering in Athena.
+To make the data available for quering, we just have to consume each event topic, store them in Datalake (S3) and plug a SQL engine to make the data queriable. To accomplish this, we can use Kafka Connect with s3-sink plugin to land the data into Datalake and use Hive Metastore + Trino (former PrestoSQL) or AWS Glue + Athena as SQL Engine. The first gives more flexibility and is better suited for large datasets consumption, once Athena costs is calculated based on volume of data scanned. If data volume is not a issue, we can choose Athena, which is managed service, removing the burden of maintaining a Hive + Trino cluster. Since s3-sink plugin does not have support to repair Hive partitions, we can create a workaround using S3 Notifications + Lambda + DynamoDB, as proposed in this [article](https://aws.amazon.com/blogs/big-data/data-lake-ingestion-automatically-partition-hive-external-tables-with-aws/), or even use a open-source solution like [Secor](https://github.com/pinterest/secor), which has this support. In Glue + Athena case, we can use Glue crawlers to make datasets available for quering in Athena.
 
 ## Solution Demo
 
@@ -131,7 +131,7 @@ docker-compose build && \
 docker-compose up -d
 ```
 
-Go grab a coffee, it will take a while.
+Go grab a coffee, it will take a while to build and download all images.
 
 ### **Data Ingestion**
 
