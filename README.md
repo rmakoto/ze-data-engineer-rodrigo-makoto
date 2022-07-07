@@ -16,7 +16,7 @@ Since my background is mainly working with open-source technologies along with s
 - AWS Glue (Metastore)
 - AWS Athena (SQL engine)
 
-![AWS Architecture](/images/aws.jpg)
+![AWS Architecture](https://user-images.githubusercontent.com/16414105/177860059-afd1ecbf-6053-4871-ba7e-4a5277f5b85a.jpg)
 
 ### **Solution #2**: Using only open-source components
 
@@ -29,7 +29,7 @@ Since my background is mainly working with open-source technologies along with s
 - Hive Metastore + Postgres (Metastore)
 - All components running on K8S
 
-![Open Source Architecture](/images/opensource.jpg)
+![Open Source Architecture]([/images/opensource.jpg](https://user-images.githubusercontent.com/16414105/177860301-96332f99-a1f2-49c4-8af9-653cf8e1b4a0.jpg)
 
 ### **Solution #3**: Hybrid solution using AWS and open source components
 
@@ -45,7 +45,7 @@ Since my background is mainly working with open-source technologies along with s
 - RDS Postgres (Hive Metastore database)
 - AWS S3 (Datalake)
 
-![Hybrid Architecture](/images/hybrid.jpg)
+![Hybrid Architecture](https://user-images.githubusercontent.com/16414105/177860183-b4c189e8-9286-461f-9655-a5922891d0da.jpg)
 
 ### Challenge Questions
 
